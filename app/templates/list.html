@@ -80,7 +80,8 @@
         {% if log.tags %}
           <div class="meta">タグ: {{ log.tags }}</div>
         {% endif %}
-        <div class="meta">{{ log.created_at.strftime("%Y-%m-%d %H:%M") }}</div>
+        <!-- created_at はDB上はUTC。jstフィルタ(main.py)でJSTに変換して表示 -->
+        <div class="meta">{{ log.created_at | jst }}</div>
       </div>
     {% endfor %}
   {% else %}

@@ -3,6 +3,8 @@
 テスト用にin-memory SQLiteを使い、本番DBファイルとは完全に分離する。
 各テスト関数の前後でテーブルを作り直し、テスト間のデータ干渉を防ぐ。
 """
+from datetime import datetime
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import StaticPool, create_engine
@@ -10,6 +12,7 @@ from sqlalchemy.orm import sessionmaker
 
 from app.database import Base, get_db
 from app.main import app
+from app.models import AiLog
 
 # StaticPool: in-memory SQLiteは接続ごとに別DBになってしまうため、
 # 全接続で同じ1つの接続を使い回す設定が必要
@@ -47,6 +50,23 @@ def create_sample(title="テストログ", ai_type="Claude"):
         "/api/logs",
         json={"title": title, "ai_type": ai_type, "tags": "test", "note": "メモ"},
     )
+
+
+def insert_log_with_created_at(created_at: datetime, title="時刻テスト") -> int:
+    """created_at を固定値で指定してDBに直接登録するヘルパー。
+
+    created_at はAPI経由では指定できない(サーバ時刻で自動設定)ため、
+    JST表示のような時刻依存のテストではDBへ直接挿入する。
+    DB上の保存値と同じく naive UTC を渡すこと。
+    """
+    db = TestSessionLocal()
+    try:
+        log = AiLog(title=title, ai_type="Claude", created_at=created_at)
+        db.add(log)
+        db.commit()
+        return log.id
+    finally:
+        db.close()
 
 
 # --- 1. 登録成功 ---
@@ -273,6 +293,36 @@ def test_list_page_escapes_html_in_title():
     assert "&lt;script&gt;" in res.text
 
 
+def test_list_page_empty_shows_message():
+    """0件時の一覧画面に空メッセージが表示される"""
+    res = client.get("/")
+    assert res.status_code == 200
+    assert "まだログがありません。" in res.text
+
+
+# --- 10-2. created_at のJST表示 ---
+def test_list_page_shows_created_at_in_jst():
+    """一覧画面: naive UTC の created_at がJST(+9時間)で表示される"""
+    insert_log_with_created_at(datetime(2026, 1, 2, 3, 4, 0), title="JST一覧テスト")
+
+    res = client.get("/")
+    assert res.status_code == 200
+    # UTC 2026-01-02 03:04 → JST 2026-01-02 12:04
+    assert "2026-01-02 12:04 JST" in res.text
+
+
+def test_detail_page_shows_created_at_in_jst_with_date_rollover():
+    """詳細画面: JST変換で日付が翌日に繰り上がるケースも正しく表示される"""
+    log_id = insert_log_with_created_at(
+        datetime(2026, 6, 1, 20, 30, 0), title="JST詳細テスト"
+    )
+
+    res = client.get(f"/logs/{log_id}")
+    assert res.status_code == 200
+    # UTC 2026-06-01 20:30 → JST 2026-06-02 05:30(日付が変わる)
+    assert "2026-06-02 05:30 JST" in res.text
+
+
 # --- 11. 詳細画面(Phase 2) ---
 def test_detail_page_returns_200():
     log_id = create_sample(title="詳細画面テスト").json()["id"]
@@ -301,6 +351,25 @@ def test_detail_page_shows_all_fields():
     assert "Claude Code" in page.text
     assert "python, pytest" in page.text
     assert "詳細画面のメモ本文" in page.text
+
+
+def test_detail_page_escapes_html_in_note():
+    """noteにHTMLタグが含まれてもエスケープされる(詳細画面のXSS対策の確認)"""
+    res = client.post(
+        "/api/logs",
+        json={
+            "title": "note XSSテスト",
+            "ai_type": "Claude",
+            "note": "<script>alert(1)</script>",
+        },
+    )
+    log_id = res.json()["id"]
+
+    page = client.get(f"/logs/{log_id}")
+    assert page.status_code == 200
+    # タグそのものは出力されず、エスケープされた形で含まれること
+    assert "<script>alert(1)</script>" not in page.text
+    assert "&lt;script&gt;" in page.text
 
 
 def test_detail_page_not_found_returns_404_with_back_link():

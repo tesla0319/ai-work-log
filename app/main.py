@@ -6,6 +6,7 @@
 DB取得処理は fetch_logs() に共通化し、
 API(/api/logs)と画面(/)の両方から呼ぶ(二重実装の防止)。
 """
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, HTTPException, Request
@@ -26,6 +27,29 @@ app = FastAPI(title="AI Log Note")
 # テンプレートの場所を app/templates に固定する。
 # __file__ 基準にすることで、どのディレクトリから起動しても動く
 templates = Jinja2Templates(directory=Path(__file__).parent / "templates")
+
+# 日本標準時(UTC+9)。標準ライブラリのみで定義できる(zoneinfo不要)
+JST = timezone(timedelta(hours=9), name="JST")
+
+
+def format_jst(dt: datetime) -> str:
+    """naive UTC の datetime を JST の表示文字列に変換する。
+
+    タイムゾーン方針:
+    - DB上の created_at は naive UTC(タイムゾーン情報なしのUTC時刻)
+    - APIレスポンスは保存値のまま返す(UTC、オフセット表記なし)
+    - 画面表示のみ、この関数で JST に変換する
+
+    SQLiteから読み出した datetime はタイムゾーン情報を持たないため、
+    まず UTC として解釈し直してから JST に変換する。
+    """
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(JST).strftime("%Y-%m-%d %H:%M JST")
+
+
+# テンプレート内で {{ log.created_at | jst }} と書けるようにフィルタ登録する
+templates.env.filters["jst"] = format_jst
 
 
 # --- 共通関数(APIと画面で共有するDB取得処理) ---

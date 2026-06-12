@@ -60,6 +60,12 @@ python -m pytest tests/ -v
 
 `created_at` はサーバ側で自動設定されます(リクエストでの指定不可)。
 
+### created_at のタイムゾーンの扱い
+
+- DB上の `created_at` は **naive UTC**(タイムゾーン情報なしのUTC時刻)として保存・解釈します。既存データも naive UTC として扱います
+- APIレスポンスの `created_at` は保存値のまま返します(UTC、オフセット表記なし)
+- **画面(一覧・詳細)のみJSTに変換**し、`YYYY-MM-DD HH:MM JST` 形式で表示します
+
 ```bash
 curl -X POST http://127.0.0.1:8000/api/logs \
   -H "Content-Type: application/json" \
@@ -109,6 +115,7 @@ curl "http://127.0.0.1:8000/api/logs?title=Claude"
 
 - `GET /` : ログ一覧画面。カードのタイトルから詳細画面へ移動できます
 - `GET /logs/{log_id}` : ログ詳細画面。存在しないIDは一覧へ戻るリンク付きの404画面を表示します
+- 登録日時はJSTに変換して `YYYY-MM-DD HH:MM JST` 形式で表示します(DB・APIはUTCのまま)
 
 スマホ前提のカード型・縦並びレイアウトです。
 
