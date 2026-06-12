@@ -3,11 +3,15 @@
 SQLite + SQLAlchemy の最小構成。
 テスト時は dependency_overrides でこの get_db を差し替える。
 """
+from pathlib import Path
+
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-# SQLiteのDBファイルはプロジェクト直下に作成される
-DATABASE_URL = "sqlite:///./ai_log_note.db"
+# SQLiteのDBファイルはプロジェクト直下に作成される。
+# __file__ 基準にすることで、どのディレクトリから起動しても同じDBを参照する
+DB_PATH = Path(__file__).resolve().parent.parent / "ai_log_note.db"
+DATABASE_URL = f"sqlite:///{DB_PATH}"
 
 # check_same_thread=False:
 # FastAPIは1リクエスト内で別スレッドからDBを触ることがあるため、

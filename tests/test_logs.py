@@ -92,6 +92,20 @@ def test_create_log_empty_title():
     assert res.status_code == 422
 
 
+# --- 4-1. title の空白処理 ---
+def test_create_log_whitespace_only_title_rejected():
+    """空白のみの title は 422"""
+    res = client.post("/api/logs", json={"title": "   ", "ai_type": "Claude"})
+    assert res.status_code == 422
+
+
+def test_create_log_title_stripped():
+    """title の前後空白は除去して保存される"""
+    res = client.post("/api/logs", json={"title": "  前後空白  ", "ai_type": "Claude"})
+    assert res.status_code == 201
+    assert res.json()["title"] == "前後空白"
+
+
 # --- 4-2. title の境界値(max_length=200) ---
 def test_create_log_title_200_chars_success():
     """境界値: 200文字ちょうどは登録成功"""
@@ -134,6 +148,43 @@ def test_create_log_tags_only_commas_becomes_empty():
     )
     assert res.status_code == 201
     assert res.json()["tags"] == ""
+
+
+# --- 4-4. tags / note の長さ境界値 ---
+def test_create_log_tags_500_chars_success():
+    """境界値: tags 500文字ちょうどは登録成功"""
+    res = client.post(
+        "/api/logs",
+        json={"title": "tags境界値", "ai_type": "Claude", "tags": "a" * 500},
+    )
+    assert res.status_code == 201
+
+
+def test_create_log_tags_501_chars_rejected():
+    """境界値+1: tags 501文字は 422"""
+    res = client.post(
+        "/api/logs",
+        json={"title": "tags境界値超過", "ai_type": "Claude", "tags": "a" * 501},
+    )
+    assert res.status_code == 422
+
+
+def test_create_log_note_10000_chars_success():
+    """境界値: note 10000文字ちょうどは登録成功"""
+    res = client.post(
+        "/api/logs",
+        json={"title": "note境界値", "ai_type": "Claude", "note": "a" * 10_000},
+    )
+    assert res.status_code == 201
+
+
+def test_create_log_note_10001_chars_rejected():
+    """境界値+1: note 10001文字は 422"""
+    res = client.post(
+        "/api/logs",
+        json={"title": "note境界値超過", "ai_type": "Claude", "note": "a" * 10_001},
+    )
+    assert res.status_code == 422
 
 
 # --- 5. 一覧取得(登録日時の降順) ---

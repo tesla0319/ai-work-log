@@ -21,15 +21,28 @@ class AiType(str, Enum):
 class LogCreate(BaseModel):
     """ログ登録のリクエストボディ。
 
-    - title: 必須。min_length=1 で空文字を拒否(422)
+    - title: 必須。空文字・空白のみは拒否(422)。前後空白は除去して保存
     - ai_type: 必須。Enum外の値は422
-    - tags / note: 省略可。未指定時は空文字で保存
+    - tags / note: 省略可。未指定時は空文字で保存。長さ上限超過は422
     - tags は保存前に正規化される(下記 normalize_tags 参照)
     """
     title: str = Field(min_length=1, max_length=200)
     ai_type: AiType
-    tags: str = ""
-    note: str = ""
+    tags: str = Field(default="", max_length=500)
+    note: str = Field(default="", max_length=10_000)
+
+    @field_validator("title")
+    @classmethod
+    def strip_title(cls, value: str) -> str:
+        """title の前後空白を除去する。除去後に空なら拒否(422)。
+
+        min_length=1 だけでは空白のみ(" "など)が通ってしまうため、
+        strip 後の空チェックをここで行う。
+        """
+        value = value.strip()
+        if not value:
+            raise ValueError("title must not be whitespace only")
+        return value
 
     @field_validator("tags")
     @classmethod
