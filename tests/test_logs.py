@@ -573,3 +573,106 @@ def test_submit_form_tags_normalized():
     )
     logs = client.get("/api/logs").json()
     assert logs[0]["tags"] == "a, b"
+
+
+# --- 13. 次回作業メモ(Phase 6) ---
+def test_create_log_with_next_action():
+    """API登録時に next_action を保存・取得できる"""
+    res = client.post(
+        "/api/logs",
+        json={
+            "title": "次回作業テスト",
+            "ai_type": "Claude",
+            "next_action": "テストを書き直す",
+        },
+    )
+    assert res.status_code == 201
+    assert res.json()["next_action"] == "テストを書き直す"
+
+    # 詳細APIでも返ること(DB保存値の確認)
+    log_id = res.json()["id"]
+    detail = client.get(f"/api/logs/{log_id}")
+    assert detail.json()["next_action"] == "テストを書き直す"
+
+
+def test_create_log_next_action_defaults_to_empty():
+    """next_action 未指定時は空文字で保存される"""
+    res = client.post("/api/logs", json={"title": "未指定テスト", "ai_type": "Other"})
+    assert res.status_code == 201
+    assert res.json()["next_action"] == ""
+
+
+def test_create_log_next_action_5000_chars_success():
+    """境界値: next_action 5000文字ちょうどは登録成功"""
+    res = client.post(
+        "/api/logs",
+        json={"title": "next_action境界値", "ai_type": "Claude", "next_action": "a" * 5_000},
+    )
+    assert res.status_code == 201
+
+
+def test_create_log_next_action_5001_chars_rejected():
+    """境界値+1: next_action 5001文字は 422"""
+    res = client.post(
+        "/api/logs",
+        json={"title": "next_action超過", "ai_type": "Claude", "next_action": "a" * 5_001},
+    )
+    assert res.status_code == 422
+
+
+def test_new_log_page_has_next_action_textarea():
+    """登録画面に next_action の textarea が表示される"""
+    res = client.get("/logs/new")
+    assert res.status_code == 200
+    assert 'name="next_action"' in res.text
+    assert "次回作業メモ" in res.text
+
+
+def test_submit_form_saves_next_action():
+    """フォーム登録で next_action が保存される"""
+    client.post(
+        "/logs/new",
+        data={
+            "title": "フォーム次回作業",
+            "ai_type": "Claude",
+            "next_action": "フォームからの引き継ぎメモ",
+        },
+        follow_redirects=False,
+    )
+    logs = client.get("/api/logs").json()
+    assert logs[0]["next_action"] == "フォームからの引き継ぎメモ"
+
+
+def test_detail_page_shows_next_action():
+    """詳細画面に next_action が表示される"""
+    res = client.post(
+        "/api/logs",
+        json={
+            "title": "詳細next_action",
+            "ai_type": "Claude",
+            "next_action": "次回はAPIの整理から始める",
+        },
+    )
+    log_id = res.json()["id"]
+
+    page = client.get(f"/logs/{log_id}")
+    assert page.status_code == 200
+    assert "次回作業メモ" in page.text
+    assert "次回はAPIの整理から始める" in page.text
+
+
+def test_list_page_does_not_show_next_action():
+    """一覧画面には next_action を表示しない"""
+    client.post(
+        "/api/logs",
+        json={
+            "title": "一覧非表示テスト",
+            "ai_type": "Claude",
+            "next_action": "一覧には出ない引き継ぎメモ",
+        },
+    )
+
+    res = client.get("/")
+    assert res.status_code == 200
+    assert "一覧非表示テスト" in res.text  # ログ自体は表示される
+    assert "一覧には出ない引き継ぎメモ" not in res.text

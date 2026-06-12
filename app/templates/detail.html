@@ -79,6 +79,11 @@
     </div>
 
     <div class="field">
+      <div class="field-label">次回作業メモ</div>
+      <div class="field-value">{{ log.next_action if log.next_action else "(なし)" }}</div>
+    </div>
+
+    <div class="field">
       <div class="field-label">登録日時</div>
       <!-- created_at はDB上はUTC。jstフィルタ(main.py)でJSTに変換して表示 -->
       <div class="field-value">{{ log.created_at | jst }}</div>

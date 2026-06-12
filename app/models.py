@@ -26,4 +26,7 @@ class AiLog(Base):
     # tags はMVPではカンマ区切りの文字列として保存(未指定は空文字)
     tags: Mapped[str] = mapped_column(Text, nullable=False, default="")
     note: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    # next_action は「次にやること」のメモ。新しいチャットや
+    # 次回作業への引き継ぎ用(未指定は空文字)
+    next_action: Mapped[str] = mapped_column(Text, nullable=False, default="")
     created_at: Mapped[datetime] = mapped_column(nullable=False, default=utc_now)

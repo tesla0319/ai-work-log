@@ -23,6 +23,26 @@ from app.schemas import AiType, LogCreate, LogResponse
 # 既存テーブルがあれば何もしない(データは消えない)。
 Base.metadata.create_all(bind=engine)
 
+
+def ensure_columns() -> None:
+    """後からモデルに追加した列を既存テーブルに補う(最小マイグレーション)。
+
+    create_all は「テーブルが無ければ作る」だけで、既存テーブルへの
+    列追加はしないため、Phase 6 で追加した next_action 列をここで補う。
+    既存データは削除せずそのまま保持される。
+    スキーマ変更が頻繁になってきたら Alembic の導入を検討する。
+    """
+    with engine.begin() as conn:
+        # PRAGMA table_info の各行は (cid, name, type, ...)。name は添字1
+        existing = {row[1] for row in conn.exec_driver_sql("PRAGMA table_info(ai_logs)")}
+        if "next_action" not in existing:
+            conn.exec_driver_sql(
+                "ALTER TABLE ai_logs ADD COLUMN next_action TEXT NOT NULL DEFAULT ''"
+            )
+
+
+ensure_columns()
+
 app = FastAPI(title="AI Log Note")
 
 # テンプレートの場所を app/templates に固定する。
@@ -102,6 +122,7 @@ def insert_log(db: Session, payload: LogCreate) -> AiLog:
         ai_type=payload.ai_type.value,  # Enum -> str に変換して保存
         tags=payload.tags,
         note=payload.note,
+        next_action=payload.next_action,
     )
     db.add(log)
     db.commit()
@@ -170,7 +191,13 @@ def render_new_log_page(
 
 def format_validation_errors(exc: ValidationError) -> list[str]:
     """Pydanticのバリデーションエラーを画面表示用の文言に変換する"""
-    labels = {"title": "タイトル", "ai_type": "AI種別", "tags": "タグ", "note": "メモ"}
+    labels = {
+        "title": "タイトル",
+        "ai_type": "AI種別",
+        "tags": "タグ",
+        "note": "メモ",
+        "next_action": "次回作業メモ",
+    }
     messages = []
     for error in exc.errors():
         field = str(error["loc"][0]) if error["loc"] else ""
@@ -216,7 +243,7 @@ def new_log_page(request: Request):
     """登録フォーム画面(初回表示)"""
     return render_new_log_page(
         request=request,
-        values={"title": "", "ai_type": "", "tags": "", "note": ""},
+        values={"title": "", "ai_type": "", "tags": "", "note": "", "next_action": ""},
         errors=[],
     )
 
@@ -228,6 +255,7 @@ def create_log_from_form(
     ai_type: str = Form(""),
     tags: str = Form(""),
     note: str = Form(""),
+    next_action: str = Form(""),
     db: Session = Depends(get_db),
 ):
     """登録フォームの送信を受け付ける。
@@ -238,11 +266,19 @@ def create_log_from_form(
     - 失敗: 入力値とエラーメッセージ付きで同じフォームを422で再表示
     """
     try:
-        payload = LogCreate(title=title, ai_type=ai_type, tags=tags, note=note)
+        payload = LogCreate(
+            title=title, ai_type=ai_type, tags=tags, note=note, next_action=next_action
+        )
     except ValidationError as exc:
         return render_new_log_page(
             request=request,
-            values={"title": title, "ai_type": ai_type, "tags": tags, "note": note},
+            values={
+                "title": title,
+                "ai_type": ai_type,
+                "tags": tags,
+                "note": note,
+                "next_action": next_action,
+            },
             errors=format_validation_errors(exc),
             status_code=422,
         )

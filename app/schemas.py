@@ -23,13 +23,15 @@ class LogCreate(BaseModel):
 
     - title: 必須。空文字・空白のみは拒否(422)。前後空白は除去して保存
     - ai_type: 必須。Enum外の値は422
-    - tags / note: 省略可。未指定時は空文字で保存。長さ上限超過は422
+    - tags / note / next_action: 省略可。未指定時は空文字で保存。長さ上限超過は422
     - tags は保存前に正規化される(下記 normalize_tags 参照)
+    - next_action: 次回作業メモ(次にやることの引き継ぎ用)
     """
     title: str = Field(min_length=1, max_length=200)
     ai_type: AiType
     tags: str = Field(default="", max_length=500)
     note: str = Field(default="", max_length=10_000)
+    next_action: str = Field(default="", max_length=5_000)
 
     @field_validator("title")
     @classmethod
@@ -69,6 +71,7 @@ class LogResponse(BaseModel):
     ai_type: str
     tags: str
     note: str
+    next_action: str
     created_at: datetime
 
     # SQLAlchemyモデルのインスタンスから直接変換できるようにする
