@@ -9,14 +9,15 @@ API(/api/logs)と画面(/)の両方から呼ぶ(二重実装の防止)。
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, HTTPException, Request
-from fastapi.responses import HTMLResponse
+from fastapi import Depends, FastAPI, Form, HTTPException, Request
+from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.templating import Jinja2Templates
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.database import Base, engine, get_db
 from app.models import AiLog
-from app.schemas import LogCreate, LogResponse
+from app.schemas import AiType, LogCreate, LogResponse
 
 # MVPのためマイグレーションツールは使わず、起動時にテーブルを作成する。
 # 既存テーブルがあれば何もしない(データは消えない)。
@@ -77,11 +78,13 @@ def fetch_log(db: Session, log_id: int) -> AiLog | None:
     return db.get(AiLog, log_id)
 
 
-# --- API ---
+def insert_log(db: Session, payload: LogCreate) -> AiLog:
+    """検証済みデータからログを1件登録する。
 
-@app.post("/api/logs", response_model=LogResponse, status_code=201)
-def create_log(payload: LogCreate, db: Session = Depends(get_db)):
-    """ログ登録。created_at はモデルのdefault(サーバ時刻)で自動設定される"""
+    API(POST /api/logs)とフォーム(POST /logs/new)の共通関数。
+    バリデーションは LogCreate の生成時に済んでいる前提で、
+    この関数は保存だけを行う。
+    """
     log = AiLog(
         title=payload.title,
         ai_type=payload.ai_type.value,  # Enum -> str に変換して保存
@@ -92,6 +95,14 @@ def create_log(payload: LogCreate, db: Session = Depends(get_db)):
     db.commit()
     db.refresh(log)  # DBで採番された id と created_at を取得し直す
     return log
+
+
+# --- API ---
+
+@app.post("/api/logs", response_model=LogResponse, status_code=201)
+def create_log(payload: LogCreate, db: Session = Depends(get_db)):
+    """ログ登録。created_at はモデルのdefault(サーバ時刻)で自動設定される"""
+    return insert_log(db, payload)
 
 
 @app.get("/api/logs", response_model=list[LogResponse])
@@ -113,7 +124,40 @@ def get_log(log_id: int, db: Session = Depends(get_db)):
     return log
 
 
-# --- 画面(Phase 1: 一覧 / Phase 2: 詳細) ---
+# --- 画面(Phase 1: 一覧 / Phase 2: 詳細 / Phase 3: 登録フォーム) ---
+
+def render_new_log_page(
+    request: Request,
+    values: dict[str, str],
+    errors: list[str],
+    status_code: int = 200,
+):
+    """登録フォームを描画する。初回表示とエラー時の再表示で共用。
+
+    values: フォームに表示する入力値(エラー時は入力内容を保持して返す)
+    errors: 画面上部に表示するエラーメッセージのリスト
+    """
+    return templates.TemplateResponse(
+        request=request,
+        name="new.html",
+        context={
+            # select の選択肢。Enumから生成するので許可値とズレない
+            "ai_types": [ai_type.value for ai_type in AiType],
+            "values": values,
+            "errors": errors,
+        },
+        status_code=status_code,
+    )
+
+
+def format_validation_errors(exc: ValidationError) -> list[str]:
+    """Pydanticのバリデーションエラーを画面表示用の文言に変換する"""
+    labels = {"title": "タイトル", "ai_type": "AI種別", "tags": "タグ", "note": "メモ"}
+    messages = []
+    for error in exc.errors():
+        field = str(error["loc"][0]) if error["loc"] else ""
+        messages.append(f"{labels.get(field, field)}: {error['msg']}")
+    return messages
 
 @app.get("/", response_class=HTMLResponse)
 def list_page(request: Request, db: Session = Depends(get_db)):
@@ -129,6 +173,48 @@ def list_page(request: Request, db: Session = Depends(get_db)):
         name="list.html",
         context={"logs": logs},
     )
+
+
+# 注意: /logs/new は /logs/{log_id} より「先に」定義すること。
+# ルートは定義順に照合されるため、後に定義すると "new" が
+# log_id として解釈され、int変換に失敗して422になってしまう。
+@app.get("/logs/new", response_class=HTMLResponse)
+def new_log_page(request: Request):
+    """登録フォーム画面(初回表示)"""
+    return render_new_log_page(
+        request=request,
+        values={"title": "", "ai_type": "", "tags": "", "note": ""},
+        errors=[],
+    )
+
+
+@app.post("/logs/new", response_class=HTMLResponse)
+def create_log_from_form(
+    request: Request,
+    title: str = Form(""),
+    ai_type: str = Form(""),
+    tags: str = Form(""),
+    note: str = Form(""),
+    db: Session = Depends(get_db),
+):
+    """登録フォームの送信を受け付ける。
+
+    バリデーションはAPIと同じ LogCreate を手動で生成して行う
+    (検証ルールの二重実装を防ぐ)。
+    - 成功: 一覧画面へリダイレクト(303 See Other: POST後のGET誘導)
+    - 失敗: 入力値とエラーメッセージ付きで同じフォームを422で再表示
+    """
+    try:
+        payload = LogCreate(title=title, ai_type=ai_type, tags=tags, note=note)
+    except ValidationError as exc:
+        return render_new_log_page(
+            request=request,
+            values={"title": title, "ai_type": ai_type, "tags": tags, "note": note},
+            errors=format_validation_errors(exc),
+            status_code=422,
+        )
+    insert_log(db, payload)
+    return RedirectResponse(url="/", status_code=303)
 
 
 @app.get("/logs/{log_id}", response_class=HTMLResponse)

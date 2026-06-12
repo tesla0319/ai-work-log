@@ -65,10 +65,21 @@
       color: #777;
       padding: 40px 0;
     }
+    /* 新規登録ボタン: タップ領域を確保したリンク */
+    .new-link {
+      display: inline-block;
+      background: #2b6777;
+      color: #fff;
+      border-radius: 8px;
+      padding: 10px 16px;
+      margin-bottom: 16px;
+      text-decoration: none;
+    }
   </style>
 </head>
 <body>
   <h1>AIログノート</h1>
+  <a class="new-link" href="/logs/new">+ 新規登録</a>
 
   {% if logs %}
     {% for log in logs %}

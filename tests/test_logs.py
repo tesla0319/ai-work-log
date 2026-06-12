@@ -387,3 +387,72 @@ def test_list_page_has_link_to_detail():
     res = client.get("/")
     assert res.status_code == 200
     assert f'href="/logs/{log_id}"' in res.text
+
+
+# --- 12. 登録画面(Phase 3) ---
+def test_new_log_page_returns_200():
+    res = client.get("/logs/new")
+    assert res.status_code == 200
+    assert "text/html" in res.headers["content-type"]
+
+
+def test_new_log_page_has_title_input():
+    """登録画面に title の入力欄が存在する"""
+    res = client.get("/logs/new")
+    assert 'name="title"' in res.text
+
+
+def test_new_log_page_has_ai_type_select_with_allowed_values():
+    """登録画面に ai_type の select があり、許可値が選択肢として並ぶ"""
+    res = client.get("/logs/new")
+    assert 'name="ai_type"' in res.text
+    assert "<select" in res.text
+    for value in ["ChatGPT", "Claude", "Claude Code", "Gemma", "Qwen", "Other"]:
+        assert f'<option value="{value}"' in res.text
+
+
+def test_list_page_has_link_to_new():
+    """一覧画面に新規登録リンクが表示される"""
+    res = client.get("/")
+    assert res.status_code == 200
+    assert 'href="/logs/new"' in res.text
+
+
+def test_submit_form_success_redirects_to_list():
+    """フォーム登録成功時は一覧画面(/)へ303リダイレクトし、データが保存される"""
+    res = client.post(
+        "/logs/new",
+        data={"title": "フォーム登録", "ai_type": "Claude", "tags": "form", "note": "メモ"},
+        follow_redirects=False,
+    )
+    assert res.status_code == 303
+    assert res.headers["location"] == "/"
+
+    # APIと同じバリデーション・保存経路を通っていることを確認
+    logs = client.get("/api/logs").json()
+    assert logs[0]["title"] == "フォーム登録"
+    assert logs[0]["ai_type"] == "Claude"
+
+
+def test_submit_form_invalid_shows_error_and_keeps_input():
+    """バリデーションエラー時は422で同じ画面にエラー表示し、入力値を保持する"""
+    res = client.post(
+        "/logs/new",
+        data={"title": "   ", "ai_type": "Claude", "tags": "python", "note": "メモ"},
+    )
+    assert res.status_code == 422
+    assert "text/html" in res.headers["content-type"]
+    assert 'class="errors"' in res.text  # エラーメッセージ欄が表示される
+    assert "タイトル" in res.text  # どの項目のエラーかが分かる
+    assert 'value="python"' in res.text  # 入力したtagsが保持される
+
+
+def test_submit_form_tags_normalized():
+    """フォーム経由でもAPIと同じtags正規化が適用される(LogCreate共用の確認)"""
+    client.post(
+        "/logs/new",
+        data={"title": "フォーム正規化", "ai_type": "Other", "tags": " a ,, b "},
+        follow_redirects=False,
+    )
+    logs = client.get("/api/logs").json()
+    assert logs[0]["tags"] == "a, b"
