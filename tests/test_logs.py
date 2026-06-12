@@ -389,6 +389,55 @@ def test_list_page_has_link_to_detail():
     assert f'href="/logs/{log_id}"' in res.text
 
 
+# --- 10-3. 一覧画面のタイトル検索(Phase 4) ---
+def test_list_page_has_search_form():
+    """一覧画面に title 入力欄を持つ検索フォームが表示される"""
+    res = client.get("/")
+    assert res.status_code == 200
+    assert '<form class="search"' in res.text
+    assert 'name="title"' in res.text
+
+
+def test_list_page_search_filters_by_title():
+    """GET /?title=xxx で部分一致したログのみ表示される"""
+    create_sample(title="Claude Codeの使い方")
+    create_sample(title="ChatGPTの設定")
+
+    res = client.get("/", params={"title": "Claude"})
+    assert res.status_code == 200
+    assert "Claude Codeの使い方" in res.text
+    assert "ChatGPTの設定" not in res.text
+
+
+def test_list_page_search_keeps_input_value():
+    """検索後も入力欄に検索語が残る"""
+    res = client.get("/", params={"title": "Claude"})
+    assert res.status_code == 200
+    assert 'value="Claude"' in res.text
+
+
+def test_list_page_search_no_match_shows_message():
+    """検索結果0件の場合は専用メッセージが表示される"""
+    create_sample(title="ヒットしないデータ")
+
+    res = client.get("/", params={"title": "存在しないキーワード"})
+    assert res.status_code == 200
+    assert "該当するログがありません。" in res.text
+    # 未登録時のメッセージとは区別される
+    assert "まだログがありません。" not in res.text
+
+
+def test_list_page_search_empty_title_shows_all():
+    """title が空文字の場合は従来どおり全件表示される"""
+    create_sample(title="1件目")
+    create_sample(title="2件目")
+
+    res = client.get("/", params={"title": ""})
+    assert res.status_code == 200
+    assert "1件目" in res.text
+    assert "2件目" in res.text
+
+
 # --- 12. 登録画面(Phase 3) ---
 def test_new_log_page_returns_200():
     res = client.get("/logs/new")

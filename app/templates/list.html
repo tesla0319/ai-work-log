@@ -75,11 +75,40 @@
       margin-bottom: 16px;
       text-decoration: none;
     }
+    /* 検索フォーム: 入力欄とボタンを横並びにする(スマホ前提の1行構成) */
+    .search {
+      display: flex;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+    .search input {
+      flex: 1;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 1rem;
+    }
+    .search button {
+      padding: 10px 16px;
+      background: #2b6777;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      font-size: 1rem;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
   <h1>AIログノート</h1>
   <a class="new-link" href="/logs/new">+ 新規登録</a>
+
+  <!-- JavaScript不使用: GET送信で /?title=xxx に遷移して検索する。
+       絞り込みはサーバ側(fetch_logs)がAPIと共通の処理で行う -->
+  <form class="search" method="get" action="/">
+    <input type="text" name="title" value="{{ title }}" placeholder="タイトルで検索">
+    <button type="submit">検索</button>
+  </form>
 
   {% if logs %}
     {% for log in logs %}
@@ -95,6 +124,9 @@
         <div class="meta">{{ log.created_at | jst }}</div>
       </div>
     {% endfor %}
+  {% elif title %}
+    {# 検索して0件の場合は、未登録時とメッセージを分ける #}
+    <p class="empty">該当するログがありません。</p>
   {% else %}
     <p class="empty">まだログがありません。</p>
   {% endif %}

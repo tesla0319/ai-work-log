@@ -160,18 +160,23 @@ def format_validation_errors(exc: ValidationError) -> list[str]:
     return messages
 
 @app.get("/", response_class=HTMLResponse)
-def list_page(request: Request, db: Session = Depends(get_db)):
+def list_page(request: Request, title: str | None = None, db: Session = Depends(get_db)):
     """一覧画面。APIと同じ fetch_logs() を使う(二重実装の防止)。
+
+    title クエリパラメータがあればタイトル部分一致で絞り込む
+    (API GET /api/logs?title=xxx と同じ挙動)。
+    未指定・空文字の場合は全件表示。
 
     Jinja2の自動エスケープが有効なため、title等にHTMLタグが
     含まれていてもそのまま文字として表示される(XSS対策)。
     テンプレート内で safe フィルタは使用禁止。
     """
-    logs = fetch_logs(db)
+    logs = fetch_logs(db, title)
     return templates.TemplateResponse(
         request=request,
         name="list.html",
-        context={"logs": logs},
+        # title は検索フォームへの再表示用(検索語をフォームに残す)
+        context={"logs": logs, "title": title or ""},
     )
 
 
