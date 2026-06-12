@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{{ log.title }} - AIログノート</title>
+  <style>
+    /* 一覧画面と共通のスタイルが増えてきたら base.html への
+       継承(extends)を検討する。Phase 2時点では2画面なので直書きを維持 */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+    }
+    body {
+      font-family: sans-serif;
+      background: #f5f5f0;
+      color: #333;
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 16px;
+      line-height: 1.6;
+    }
+    .back {
+      display: inline-block;
+      /* タップ領域確保: スマホで押しやすいよう上下に余白を持たせる */
+      padding: 10px 0;
+      color: #2b6777;
+    }
+    .card {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 16px;
+    }
+    h1 {
+      font-size: 1.2rem;
+      overflow-wrap: break-word;
+    }
+    .badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      background: #2b6777;
+      color: #fff;
+      border-radius: 4px;
+      padding: 2px 8px;
+      margin-top: 8px;
+    }
+    /* 項目を縦並びで表示する(ラベル+値のセット) */
+    .field {
+      margin-top: 16px;
+    }
+    .field-label {
+      font-size: 0.8rem;
+      color: #777;
+    }
+    .field-value {
+      overflow-wrap: break-word;
+      /* note内の改行をそのまま表示する。HTMLとしては解釈しない
+         (自動エスケープ+pre-wrapの組み合わせ。safeフィルタは使わない) */
+      white-space: pre-wrap;
+    }
+  </style>
+</head>
+<body>
+  <a class="back" href="/">&larr; 一覧へ戻る</a>
+
+  <div class="card">
+    <h1>{{ log.title }}</h1>
+    <span class="badge">{{ log.ai_type }}</span>
+
+    <div class="field">
+      <div class="field-label">タグ</div>
+      <div class="field-value">{{ log.tags if log.tags else "(なし)" }}</div>
+    </div>
+
+    <div class="field">
+      <div class="field-label">メモ</div>
+      <div class="field-value">{{ log.note if log.note else "(なし)" }}</div>
+    </div>
+
+    <div class="field">
+      <div class="field-label">登録日時</div>
+      <div class="field-value">{{ log.created_at.strftime("%Y-%m-%d %H:%M") }}</div>
+    </div>
+  </div>
+</body>
+</html>

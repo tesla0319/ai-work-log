@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <!-- スマホ対応の必須設定: これがないとスマホで縮小表示される -->
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AIログノート</title>
+  <style>
+    /* Phase 1ではCSSファイルを分けず、このページ内に最小限を直書きする。
+       画面が増えたPhaseで static/style.css への分離を検討 */
+    * {
+      box-sizing: border-box;
+      margin: 0;
+    }
+    body {
+      font-family: sans-serif;
+      background: #f5f5f0;
+      color: #333;
+      /* スマホ前提の単一カラム。広い画面でも読みやすい幅に制限 */
+      max-width: 640px;
+      margin: 0 auto;
+      padding: 16px;
+      line-height: 1.6;
+    }
+    h1 {
+      font-size: 1.3rem;
+      padding: 8px 0 16px;
+    }
+    /* カード型レイアウト: 縦積みで横スクロールを発生させない */
+    .card {
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 14px 16px;
+      margin-bottom: 12px;
+    }
+    .card-title {
+      font-size: 1.05rem;
+      font-weight: bold;
+      overflow-wrap: break-word;
+    }
+    /* タイトルリンク: タップ領域を確保しつつ、リンク色で押せることを示す */
+    .card-title a {
+      color: #2b6777;
+      text-decoration: none;
+      display: block;
+      padding: 4px 0;
+    }
+    .badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      background: #2b6777;
+      color: #fff;
+      border-radius: 4px;
+      padding: 2px 8px;
+      margin-top: 6px;
+    }
+    .meta {
+      font-size: 0.8rem;
+      color: #777;
+      margin-top: 6px;
+    }
+    .empty {
+      text-align: center;
+      color: #777;
+      padding: 40px 0;
+    }
+  </style>
+</head>
+<body>
+  <h1>AIログノート</h1>
+
+  {% if logs %}
+    {% for log in logs %}
+      <div class="card">
+        <div class="card-title">
+          <a href="/logs/{{ log.id }}">{{ log.title }}</a>
+        </div>
+        <span class="badge">{{ log.ai_type }}</span>
+        {% if log.tags %}
+          <div class="meta">タグ: {{ log.tags }}</div>
+        {% endif %}
+        <div class="meta">{{ log.created_at.strftime("%Y-%m-%d %H:%M") }}</div>
+      </div>
+    {% endfor %}
+  {% else %}
+    <p class="empty">まだログがありません。</p>
+  {% endif %}
+</body>
+</html>
