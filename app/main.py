@@ -55,8 +55,17 @@ templates.env.filters["jst"] = format_jst
 
 # --- 共通関数(APIと画面で共有するDB取得処理) ---
 
-def fetch_logs(db: Session, title: str | None = None) -> list[AiLog]:
-    """ログを登録日時の降順で取得する。title指定時はタイトル部分一致で絞り込む。
+def fetch_logs(
+    db: Session,
+    title: str | None = None,
+    ai_type: str | None = None,
+) -> list[AiLog]:
+    """ログを登録日時の降順で取得する。
+
+    - title 指定時: タイトル部分一致で絞り込む
+    - ai_type 指定時: AI種別の完全一致で絞り込む
+    - 両方指定時: AND条件で絞り込む
+    - 未指定・空文字の条件は無視する(絞り込まない)
 
     API(GET /api/logs)と画面(GET /)の両方から呼ばれる共通関数。
     並び順などの仕様変更はこの関数だけ直せば両方に反映される。
@@ -65,6 +74,9 @@ def fetch_logs(db: Session, title: str | None = None) -> list[AiLog]:
     if title:
         # contains は LIKE '%xxx%' に展開される(部分一致)
         query = query.filter(AiLog.title.contains(title))
+    if ai_type:
+        # AI種別は完全一致。許可外の値を指定した場合は単に0件になる
+        query = query.filter(AiLog.ai_type == ai_type)
     return query.order_by(AiLog.created_at.desc(), AiLog.id.desc()).all()
 
 
@@ -106,13 +118,19 @@ def create_log(payload: LogCreate, db: Session = Depends(get_db)):
 
 
 @app.get("/api/logs", response_model=list[LogResponse])
-def list_logs(title: str | None = None, db: Session = Depends(get_db)):
+def list_logs(
+    title: str | None = None,
+    ai_type: str | None = None,
+    db: Session = Depends(get_db),
+):
     """ログ一覧(登録日時の降順)。
 
-    title クエリパラメータがあればタイトル部分一致で絞り込む。
+    - title: タイトル部分一致で絞り込み
+    - ai_type: AI種別の完全一致で絞り込み(許可外の値は0件になるだけ)
+    - 両方指定した場合はAND条件
     該当0件でも404にせず空配列を返す(一覧系APIの一般的な挙動)。
     """
-    return fetch_logs(db, title)
+    return fetch_logs(db, title, ai_type)
 
 
 @app.get("/api/logs/{log_id}", response_model=LogResponse)
@@ -160,23 +178,33 @@ def format_validation_errors(exc: ValidationError) -> list[str]:
     return messages
 
 @app.get("/", response_class=HTMLResponse)
-def list_page(request: Request, title: str | None = None, db: Session = Depends(get_db)):
+def list_page(
+    request: Request,
+    title: str | None = None,
+    ai_type: str | None = None,
+    db: Session = Depends(get_db),
+):
     """一覧画面。APIと同じ fetch_logs() を使う(二重実装の防止)。
 
-    title クエリパラメータがあればタイトル部分一致で絞り込む
-    (API GET /api/logs?title=xxx と同じ挙動)。
-    未指定・空文字の場合は全件表示。
+    title(部分一致)と ai_type(完全一致)で絞り込める
+    (API GET /api/logs と同じ挙動)。未指定・空文字は絞り込みなし。
 
     Jinja2の自動エスケープが有効なため、title等にHTMLタグが
     含まれていてもそのまま文字として表示される(XSS対策)。
     テンプレート内で safe フィルタは使用禁止。
     """
-    logs = fetch_logs(db, title)
+    logs = fetch_logs(db, title, ai_type)
     return templates.TemplateResponse(
         request=request,
         name="list.html",
-        # title は検索フォームへの再表示用(検索語をフォームに残す)
-        context={"logs": logs, "title": title or ""},
+        context={
+            "logs": logs,
+            # title / ai_type は検索フォームへの再表示用(入力状態を保持する)
+            "title": title or "",
+            "ai_type": ai_type or "",
+            # selectの選択肢。登録フォームと同じくEnumから生成する
+            "ai_types": [t.value for t in AiType],
+        },
     )
 
 

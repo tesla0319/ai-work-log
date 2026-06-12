@@ -75,18 +75,28 @@
       margin-bottom: 16px;
       text-decoration: none;
     }
-    /* 検索フォーム: 入力欄とボタンを横並びにする(スマホ前提の1行構成) */
+    /* 検索フォーム: スマホ前提で2行構成
+       1行目: タイトル入力(全幅) / 2行目: AI種別select + 検索ボタン */
     .search {
       display: flex;
+      flex-wrap: wrap;
       gap: 8px;
       margin-bottom: 16px;
     }
     .search input {
+      flex: 1 1 100%;
+      padding: 10px;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+      font-size: 1rem;
+    }
+    .search select {
       flex: 1;
       padding: 10px;
       border: 1px solid #ccc;
       border-radius: 6px;
       font-size: 1rem;
+      background: #fff;
     }
     .search button {
       padding: 10px 16px;
@@ -103,10 +113,16 @@
   <h1>AIログノート</h1>
   <a class="new-link" href="/logs/new">+ 新規登録</a>
 
-  <!-- JavaScript不使用: GET送信で /?title=xxx に遷移して検索する。
+  <!-- JavaScript不使用: GET送信で /?title=xxx&ai_type=xxx に遷移して検索する。
        絞り込みはサーバ側(fetch_logs)がAPIと共通の処理で行う -->
   <form class="search" method="get" action="/">
     <input type="text" name="title" value="{{ title }}" placeholder="タイトルで検索">
+    <select name="ai_type">
+      <option value="">すべてのAI種別</option>
+      {% for option in ai_types %}
+        <option value="{{ option }}" {% if ai_type == option %}selected{% endif %}>{{ option }}</option>
+      {% endfor %}
+    </select>
     <button type="submit">検索</button>
   </form>
 
@@ -124,7 +140,7 @@
         <div class="meta">{{ log.created_at | jst }}</div>
       </div>
     {% endfor %}
-  {% elif title %}
+  {% elif title or ai_type %}
     {# 検索して0件の場合は、未登録時とメッセージを分ける #}
     <p class="empty">該当するログがありません。</p>
   {% else %}

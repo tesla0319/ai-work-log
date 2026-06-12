@@ -100,6 +100,16 @@ curl http://127.0.0.1:8000/api/logs/1
 curl "http://127.0.0.1:8000/api/logs?title=Claude"
 ```
 
+### GET /api/logs?ai_type=xxx — AI種別検索
+
+AI種別の完全一致で絞り込みます。許可外の値を指定した場合はエラーにならず0件(空配列)になります。
+`title` との併用も可能で、その場合はAND条件です。
+
+```bash
+curl "http://127.0.0.1:8000/api/logs?ai_type=Claude%20Code"
+curl "http://127.0.0.1:8000/api/logs?title=設定&ai_type=Claude%20Code"
+```
+
 ## ai_type の許可値
 
 以下の6種類のみ登録可能です。それ以外の値は `422` エラーになります。
@@ -111,10 +121,10 @@ curl "http://127.0.0.1:8000/api/logs?title=Claude"
 - `Qwen`
 - `Other`
 
-## 画面(Phase 1〜4)
+## 画面(Phase 1〜5)
 
 - `GET /` : ログ一覧画面。カードのタイトルから詳細画面へ移動できます。上部の「+ 新規登録」から登録画面へ移動できます
-- `GET /?title=xxx` : 一覧画面のタイトル検索(部分一致)。上部の検索フォームから利用できます。絞り込み処理はAPIと共通です
+- `GET /?title=xxx&ai_type=xxx` : 一覧画面の検索。タイトル(部分一致)とAI種別(select・完全一致)で絞り込めます。併用時はAND条件で、絞り込み処理はAPIと共通です
 - `GET /logs/{log_id}` : ログ詳細画面。存在しないIDは一覧へ戻るリンク付きの404画面を表示します
 - `GET /logs/new` : 登録フォーム画面。登録成功時は一覧画面へリダイレクトし、入力エラー時は同じ画面にエラーメッセージを表示します(バリデーションはAPIと共通)
 - 登録日時はJSTに変換して `YYYY-MM-DD HH:MM JST` 形式で表示します(DB・APIはUTCのまま)

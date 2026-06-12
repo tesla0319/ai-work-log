@@ -248,6 +248,35 @@ def test_search_logs_by_title_partial_match():
     assert "ChatGPTの設定" not in titles
 
 
+# --- 8-2. AI種別検索(完全一致) ---
+def test_search_logs_by_ai_type():
+    create_sample(title="Claude Codeでの作業", ai_type="Claude Code")
+    create_sample(title="ChatGPTでの作業", ai_type="ChatGPT")
+    create_sample(title="Claude Codeのメモ", ai_type="Claude Code")
+
+    res = client.get("/api/logs", params={"ai_type": "Claude Code"})
+    assert res.status_code == 200
+    body = res.json()
+    assert len(body) == 2
+    assert all(log["ai_type"] == "Claude Code" for log in body)
+
+
+def test_search_logs_by_title_and_ai_type_combined():
+    """title と ai_type の併用はAND条件で絞り込まれる"""
+    create_sample(title="設定メモ", ai_type="Claude Code")
+    create_sample(title="設定メモ", ai_type="ChatGPT")
+    create_sample(title="別件", ai_type="Claude Code")
+
+    res = client.get(
+        "/api/logs", params={"title": "設定", "ai_type": "Claude Code"}
+    )
+    assert res.status_code == 200
+    body = res.json()
+    assert len(body) == 1
+    assert body[0]["title"] == "設定メモ"
+    assert body[0]["ai_type"] == "Claude Code"
+
+
 # --- 9. 検索結果0件は空配列 ---
 def test_search_logs_no_match_returns_empty_list():
     create_sample(title="ヒットしないデータ")
@@ -436,6 +465,45 @@ def test_list_page_search_empty_title_shows_all():
     assert res.status_code == 200
     assert "1件目" in res.text
     assert "2件目" in res.text
+
+
+# --- 10-4. 一覧画面のAI種別検索(Phase 5) ---
+def test_list_page_has_ai_type_select():
+    """一覧画面の検索フォームに ai_type の select があり、許可値が選択肢として並ぶ"""
+    res = client.get("/")
+    assert res.status_code == 200
+    assert '<select name="ai_type">' in res.text
+    for value in ["ChatGPT", "Claude", "Claude Code", "Gemma", "Qwen", "Other"]:
+        assert f'<option value="{value}"' in res.text
+
+
+def test_list_page_search_filters_by_ai_type():
+    """画面で ai_type 検索すると該当ログのみ表示される"""
+    create_sample(title="Claude Codeのログ", ai_type="Claude Code")
+    create_sample(title="ChatGPTのログ", ai_type="ChatGPT")
+
+    res = client.get("/", params={"ai_type": "Claude Code"})
+    assert res.status_code == 200
+    assert "Claude Codeのログ" in res.text
+    assert "ChatGPTのログ" not in res.text
+
+
+def test_list_page_search_keeps_ai_type_selection():
+    """検索後も ai_type の選択状態が保持される"""
+    res = client.get("/", params={"ai_type": "Claude Code"})
+    assert res.status_code == 200
+    assert 'value="Claude Code" selected' in res.text
+
+
+def test_list_page_search_empty_ai_type_shows_all():
+    """ai_type が空文字の場合は全件表示される"""
+    create_sample(title="A種別", ai_type="Claude")
+    create_sample(title="B種別", ai_type="ChatGPT")
+
+    res = client.get("/", params={"ai_type": ""})
+    assert res.status_code == 200
+    assert "A種別" in res.text
+    assert "B種別" in res.text
 
 
 # --- 12. 登録画面(Phase 3) ---
