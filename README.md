@@ -135,6 +135,32 @@ curl "http://127.0.0.1:8000/api/logs?title=設定&ai_type=Claude%20Code"
 
 > **重要**: 画面はローカル利用前提です。認証を実装していないため、**外部公開時は認証(最低でもBasic認証)の実装が必須**です。
 
+## Renderへのデプロイ
+
+> **公開前に必ず確認**
+> - **認証がありません**。公開URLを知っている全員がログの閲覧・登録をできます(上記「重要」参照)。個人メモを置く場合は公開範囲に注意してください
+> - **SQLiteのデータはデプロイ・再起動のたびに消えます**。Renderのディスクはエフェメラル(揮発性)のため、永続化するにはRenderのPersistent Disk(有料)の接続か、PostgreSQL化が必要です。本Phaseでは「動かして試せる状態」までを範囲とします
+
+手順:
+
+1. このリポジトリをGitHubにpushする
+2. [Render](https://render.com) にログイン → **New** → **Web Service** → リポジトリを接続
+3. 以下を設定する
+
+| 項目 | 値 |
+|---|---|
+| Language | Python 3 |
+| Build Command | `pip install -r requirements.txt` |
+| Start Command | `uvicorn app.main:app --host 0.0.0.0 --port $PORT` |
+
+4. **Create Web Service** を押すとビルド・起動し、発行されたURLでアクセスできます
+
+補足:
+
+- Start Command はリポジトリ直下の `Procfile` に書いてあるものと同一です(RenderはProcfileを自動では読まないため、ダッシュボードでの指定が必要です。Procfileは起動コマンドの記録と、Heroku系プラットフォームへの互換のために置いています)
+- `--host 0.0.0.0` は外部からのアクセスを受けるため、`--port $PORT` はRenderが割り当てるポートで待ち受けるために必要です(ローカル起動の `uvicorn app.main:app --reload` はこれまでどおり使えます)
+- Pythonバージョンを固定したい場合は、Renderの環境変数 `PYTHON_VERSION`(例: `3.13.0`)を設定してください
+
 ## MVPの制約
 
 - **認証なし**: 誰でも全APIにアクセス可能です。公開環境での利用は想定していません
